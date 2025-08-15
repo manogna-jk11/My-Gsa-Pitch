@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Ticket, ChevronLeft, CheckCircle, Clock, Sparkles, Mail, Phone, Linkedin, Github } from 'lucide-react';
+import { MessageSquare, Ticket, ChevronLeft, CheckCircle, Clock, Mail, Phone, Linkedin, Github } from 'lucide-react';
 
 const ticketData = [
   {
@@ -39,7 +39,7 @@ const ticketData = [
     subject: "Question about an upcoming event",
     message: "I heard there might be a coding workshop happening soon. Can you give me more details about it?",
     status: "In Progress",
-    response: null
+    response: "This ticket is currently being reviewed. We're finalizing the details for a series of workshops. Please check back soon for more information!"
   },
   {
     id: 3,
@@ -154,7 +154,7 @@ const TicketList = ({ tickets, onTicketSelect }) => (
   </div>
 );
 
-const TicketDetail = ({ ticket, onBack, onGenerateResponse, isGenerating, generatedResponse, setGeneratedResponse, onSolve }) => (
+const TicketDetail = ({ ticket, onBack }) => (
   <div className="flex-1 flex flex-col p-6 overflow-y-auto">
     <button onClick={onBack} className="flex items-center text-gray-600 hover:text-gray-900 transition-colors duration-200 mb-4 self-start">
       <ChevronLeft size={20} className="mr-1" /> Back to Tickets
@@ -179,7 +179,7 @@ const TicketDetail = ({ ticket, onBack, onGenerateResponse, isGenerating, genera
           <p>{ticket.message}</p>
         </div>
       </div>
-      {ticket.status === 'Solved' && ticket.response && (
+      {ticket.response && (
         <div>
           <p className="font-semibold text-lg text-gray-700 mb-2">My Response:</p>
           <div className="p-6 rounded-lg text-gray-800" style={{ backgroundColor: googleColors.lightBlue }}>
@@ -187,43 +187,9 @@ const TicketDetail = ({ ticket, onBack, onGenerateResponse, isGenerating, genera
           </div>
         </div>
       )}
-
-      {ticket.status === 'In Progress' && (
-        <div className="mt-8">
-          <p className="font-semibold text-lg text-gray-700 mb-2">Drafting a response...</p>
-          <div className="flex items-stretch space-x-4">
-            <textarea
-              className="flex-1 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-google-blue resize-none"
-              rows="6"
-              placeholder="Click 'Generate' to get an AI-powered draft, or type your own response here."
-              value={generatedResponse}
-              onChange={(e) => setGeneratedResponse(e.target.value)}
-            />
-            <button
-              onClick={onGenerateResponse}
-              disabled={isGenerating}
-              className={`flex items-center justify-center p-3 rounded-xl text-white font-bold transition-all duration-300 ${isGenerating ? 'bg-gray-400' : 'bg-google-blue hover:bg-google-blue-dark active:bg-google-blue-dark'}`}
-            >
-              {isGenerating ? (
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <>
-                  <Sparkles size={20} className="mr-2" />
-                  Generate Response ✨
-                </>
-              )}
-            </button>
-          </div>
-          <button
-            onClick={onSolve}
-            disabled={!generatedResponse || generatedResponse.trim() === ''}
-            className={`mt-4 w-full p-3 rounded-xl text-white font-bold transition-all duration-300 ${!generatedResponse || generatedResponse.trim() === '' ? 'bg-gray-400 cursor-not-allowed' : 'bg-google-green hover:bg-google-green-dark'}`}
-          >
-            Mark as Solved and Submit
-          </button>
+      {!ticket.response && (
+        <div className="mt-8 p-6 text-center text-gray-500 border border-dashed border-gray-300 rounded-lg">
+          <p>This ticket is currently being reviewed and is pending a response.</p>
         </div>
       )}
     </div>
@@ -233,91 +199,7 @@ const TicketDetail = ({ ticket, onBack, onGenerateResponse, isGenerating, genera
 const App = () => {
   const [tickets, setTickets] = useState(ticketData);
   const [selectedTicketId, setSelectedTicketId] = useState(1);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedResponse, setGeneratedResponse] = useState('');
-
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
-
-  const generateResponse = async () => {
-    setIsGenerating(true);
-    setGeneratedResponse('');
-    
-    // Construct the prompt for the Gemini API
-    const prompt = `You are an enthusiastic and helpful Google Student Ambassador. A student has submitted a help ticket. Draft a concise, encouraging response that directly addresses their question and promotes relevant Google tools.
-    
-    Student Ticket Subject: ${selectedTicket.subject}
-    Student Ticket Message: ${selectedTicket.message}
-    
-    Draft Response:`;
-    
-    try {
-      let chatHistory = [];
-      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-      const payload = { contents: chatHistory };
-      const apiKey = "";
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-      
-      let response;
-      let retries = 0;
-      const maxRetries = 3;
-      const initialDelay = 1000; // 1 second
-
-      while (retries < maxRetries) {
-        try {
-          response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (response.status === 429) { // Too Many Requests
-            const delay = initialDelay * Math.pow(2, retries);
-            await new Promise(res => setTimeout(res, delay));
-            retries++;
-            continue;
-          }
-          if (!response.ok) {
-            throw new Error(`API call failed with status: ${response.status}`);
-          }
-          break; // Success, exit the loop
-        } catch (e) {
-          console.error(e);
-          if (retries < maxRetries - 1) {
-            const delay = initialDelay * Math.pow(2, retries);
-            await new Promise(res => setTimeout(res, delay));
-            retries++;
-          } else {
-            throw e; // Re-throw the error after max retries
-          }
-        }
-      }
-
-      const result = await response.json();
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        const text = result.candidates[0].content.parts[0].text;
-        setGeneratedResponse(text);
-      } else {
-        setGeneratedResponse("Apologies, I couldn't generate a response at this time. Please try again later.");
-      }
-    } catch (error) {
-      console.error("Error calling Gemini API:", error);
-      setGeneratedResponse("An error occurred. Please try again.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const solveTicket = () => {
-    if (generatedResponse.trim() !== '') {
-      const updatedTickets = tickets.map(t =>
-        t.id === selectedTicketId ? { ...t, status: 'Solved', response: generatedResponse } : t
-      );
-      setTickets(updatedTickets);
-      setSelectedTicketId(null); // Go back to the ticket list
-      setGeneratedResponse('');
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-900 antialiased flex flex-col">
@@ -339,10 +221,6 @@ const App = () => {
               src="https://drive.google.com/uc?export=download&id=1xvoAAgUF5A_ih77jRr64-DL8wj0WbMVT"
               alt="Profile picture of the user"
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.src = "https://placehold.co/112x112/4285F4/ffffff?text=Image+Unavailable";
-                e.target.alt = "Placeholder image: The user's image is not available.";
-              }}
             />
           </div>
           <TicketList tickets={tickets} onTicketSelect={setSelectedTicketId} />
@@ -354,11 +232,6 @@ const App = () => {
             <TicketDetail
               ticket={selectedTicket}
               onBack={() => setSelectedTicketId(null)}
-              onGenerateResponse={generateResponse}
-              isGenerating={isGenerating}
-              generatedResponse={generatedResponse}
-              setGeneratedResponse={setGeneratedResponse}
-              onSolve={solveTicket}
             />
           ) : (
             <div className="flex items-center justify-center flex-1 text-gray-400">
